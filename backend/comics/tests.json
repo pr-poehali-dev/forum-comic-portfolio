@@ -1,0 +1,39 @@
+{
+  "tests": [
+    {
+      "name": "Get all comics",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "comics": []
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Create new comic",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "user_id": 1,
+        "title": "Test Comic",
+        "description": "Test description",
+        "genre": "Fantasy",
+        "cover_url": "https://example.com/cover.jpg",
+        "pages": [
+          {
+            "page_number": 1,
+            "image_url": "https://example.com/page1.jpg",
+            "caption": "Page 1"
+          }
+        ]
+      },
+      "expectedStatus": 201,
+      "expectedBody": {
+        "comic_id": "number",
+        "message": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

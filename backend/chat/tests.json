@@ -1,0 +1,30 @@
+{
+  "tests": [
+    {
+      "name": "Send message",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "sender_id": 1,
+        "receiver_id": 2,
+        "content": "Hello!"
+      },
+      "expectedStatus": 201,
+      "expectedBody": {
+        "message": "string",
+        "message_id": "number"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get conversations",
+      "method": "GET",
+      "path": "/?user_id=1",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "conversations": []
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

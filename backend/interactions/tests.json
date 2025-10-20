@@ -1,0 +1,54 @@
+{
+  "tests": [
+    {
+      "name": "Like a comic",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "action": "like",
+        "user_id": 1,
+        "comic_id": 1
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "message": "string",
+        "likes_count": "number"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Add comment",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "action": "comment",
+        "user_id": 1,
+        "comic_id": 1,
+        "content": "Great comic!"
+      },
+      "expectedStatus": 201,
+      "expectedBody": {
+        "message": "string",
+        "comment_id": "number"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Rate comic",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "action": "rate",
+        "user_id": 1,
+        "comic_id": 1,
+        "rating": 5
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "message": "string",
+        "avg_rating": "number"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
