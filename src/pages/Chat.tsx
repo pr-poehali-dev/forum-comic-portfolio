@@ -6,34 +6,33 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import Icon from '@/components/ui/icon';
 import { useAuth } from '@/context/AuthContext';
-import { chatApi, Message } from '@/lib/api';
+import { chatApi, ChatMessage } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
 const Chat = () => {
   const navigate = useNavigate();
-  const { user, token, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
   
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageText, setMessageText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isAuthenticated && token) {
+    if (isAuthenticated) {
       loadMessages();
       const interval = setInterval(loadMessages, 3000);
       return () => clearInterval(interval);
     }
-  }, [isAuthenticated, token]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
   const loadMessages = async () => {
-    if (!token) return;
     try {
-      const data = await chatApi.getMessages(token);
+      const data = await chatApi.getMessages();
       setMessages(data.messages || []);
     } catch (error) {
       console.error('Failed to load messages:', error);
@@ -48,14 +47,12 @@ const Chat = () => {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !messageText.trim()) return;
+    if (!user || !messageText.trim()) return;
 
     try {
-      const result = await chatApi.sendMessage(messageText, token);
-      if (result.success) {
-        setMessageText('');
-        await loadMessages();
-      }
+      await chatApi.sendMessage(user.id, messageText);
+      setMessageText('');
+      await loadMessages();
     } catch (error) {
       toast({ title: 'Ошибка', description: 'Не удалось отправить сообщение', variant: 'destructive' });
     }
@@ -142,7 +139,7 @@ const Chat = () => {
                             })}
                           </span>
                         </div>
-                        <p className="text-sm">{message.content}</p>
+                        <p className="text-sm">{message.message}</p>
                       </div>
                     </div>
                   );

@@ -1,28 +1,27 @@
 {
   "tests": [
     {
+      "name": "Get messages",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "messages": []
+      },
+      "bodyMatcher": "partial"
+    },
+    {
       "name": "Send message",
       "method": "POST",
       "path": "/",
       "body": {
-        "sender_id": 1,
-        "receiver_id": 2,
-        "content": "Hello!"
+        "user_id": 1,
+        "message": "Hello from test!"
       },
       "expectedStatus": 201,
       "expectedBody": {
         "message": "string",
         "message_id": "number"
-      },
-      "bodyMatcher": "partial"
-    },
-    {
-      "name": "Get conversations",
-      "method": "GET",
-      "path": "/?user_id=1",
-      "expectedStatus": 200,
-      "expectedBody": {
-        "conversations": []
       },
       "bodyMatcher": "partial"
     }

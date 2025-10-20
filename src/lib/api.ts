@@ -92,10 +92,8 @@ export const comicsApi = {
     return response.json();
   },
 
-  getById: async (id: number, token?: string | null): Promise<{ comic: ComicDetail; comments: Comment[]; user_liked: boolean; user_rating: number }> => {
-    const headers: Record<string, string> = {};
-    if (token) headers['X-Auth-Token'] = token;
-    const response = await fetch(`${API_URLS.comics}?id=${id}`, { headers });
+  getById: async (id: number): Promise<{ comic: ComicDetail }> => {
+    const response = await fetch(`${API_URLS.comics}?id=${id}`);
     return response.json();
   },
 
@@ -106,78 +104,99 @@ export const comicsApi = {
 
   create: async (
     data: {
+      user_id: number;
       title: string;
       description?: string;
       genre?: string | null;
       cover_url?: string;
-      pages: { page_number: number; image_url: string }[];
-    },
-    token: string
+      pages: { page_number: number; image_url: string; caption?: string }[];
+    }
   ) => {
     const response = await fetch(API_URLS.comics, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Auth-Token': token,
       },
       body: JSON.stringify(data),
     });
     return response.json();
   },
+};
 
-  toggleLike: async (comicId: number, token: string) => {
+export const interactionsApi = {
+  like: async (userId: number, comicId: number) => {
     const response = await fetch(API_URLS.interactions, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Auth-Token': token,
       },
-      body: JSON.stringify({ action: 'toggle_like', comic_id: comicId }),
+      body: JSON.stringify({ action: 'like', user_id: userId, comic_id: comicId }),
     });
     return response.json();
   },
 
-  rate: async (comicId: number, rating: number, token: string) => {
+  unlike: async (userId: number, comicId: number) => {
     const response = await fetch(API_URLS.interactions, {
-      method: 'POST',
+      method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        'X-Auth-Token': token,
       },
-      body: JSON.stringify({ action: 'rate', comic_id: comicId, rating }),
+      body: JSON.stringify({ action: 'unlike', user_id: userId, comic_id: comicId }),
     });
     return response.json();
   },
 
-  addComment: async (comicId: number, content: string, token: string) => {
+  rate: async (userId: number, comicId: number, rating: number) => {
     const response = await fetch(API_URLS.interactions, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Auth-Token': token,
       },
-      body: JSON.stringify({ action: 'comment', comic_id: comicId, content }),
+      body: JSON.stringify({ action: 'rate', user_id: userId, comic_id: comicId, rating }),
     });
+    return response.json();
+  },
+
+  addComment: async (userId: number, comicId: number, content: string) => {
+    const response = await fetch(API_URLS.interactions, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ action: 'comment', user_id: userId, comic_id: comicId, content }),
+    });
+    return response.json();
+  },
+
+  getComments: async (comicId: number): Promise<{ comments: Comment[] }> => {
+    const response = await fetch(`${API_URLS.interactions}?action=comments&comic_id=${comicId}`);
     return response.json();
   },
 };
 
+export interface ChatMessage {
+  id: number;
+  user_id: number;
+  message: string;
+  username: string;
+  display_name: string;
+  avatar_url?: string;
+  created_at: string;
+}
+
 export const chatApi = {
-  getMessages: async (token: string): Promise<{ messages: Message[] }> => {
-    const response = await fetch(API_URLS.chat, {
-      headers: { 'X-Auth-Token': token },
-    });
+  getMessages: async (): Promise<{ messages: ChatMessage[] }> => {
+    const response = await fetch(API_URLS.chat);
     return response.json();
   },
 
-  sendMessage: async (content: string, token: string) => {
+  sendMessage: async (userId: number, message: string) => {
     const response = await fetch(API_URLS.chat, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Auth-Token': token,
       },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ user_id: userId, message }),
     });
     return response.json();
   },

@@ -68,7 +68,7 @@ const Upload = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!token) {
+    if (!user) {
       toast({ title: 'Ошибка', description: 'Необходима авторизация', variant: 'destructive' });
       return;
     }
@@ -81,18 +81,16 @@ const Upload = () => {
 
     setIsSubmitting(true);
     try {
-      const result = await comicsApi.create(
-        {
-          title,
-          description,
-          genre: genre || null,
-          cover_url: coverUrl || validPages[0].image_url,
-          pages: validPages,
-        },
-        token
-      );
+      const result = await comicsApi.create({
+        user_id: user.id,
+        title,
+        description,
+        genre: genre || null,
+        cover_url: coverUrl || validPages[0].image_url,
+        pages: validPages,
+      });
 
-      if (result.success && result.comic_id) {
+      if (result.comic_id) {
         toast({ title: 'Успешно!', description: 'Комикс опубликован' });
         navigate(`/comic/${result.comic_id}`);
       } else {

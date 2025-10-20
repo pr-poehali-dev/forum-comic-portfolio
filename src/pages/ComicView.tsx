@@ -8,13 +8,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import Icon from '@/components/ui/icon';
 import { useAuth } from '@/context/AuthContext';
-import { comicsApi, ComicDetail, Comment } from '@/lib/api';
+import { comicsApi, interactionsApi, ComicDetail, Comment } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 
 const ComicView = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, token, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
   
   const [comic, setComic] = useState<ComicDetail | null>(null);
@@ -27,34 +27,48 @@ const ComicView = () => {
   useEffect(() => {
     if (id) {
       loadComic();
+      loadComments();
     }
   }, [id]);
 
   const loadComic = async () => {
     if (!id) return;
     try {
-      const data = await comicsApi.getById(parseInt(id), token);
+      const data = await comicsApi.getById(parseInt(id));
       setComic(data.comic);
-      setComments(data.comments || []);
-      setIsLiked(data.user_liked || false);
-      setUserRating(data.user_rating || 0);
     } catch (error) {
       console.error('Failed to load comic:', error);
       toast({ title: 'Ошибка', description: 'Не удалось загрузить комикс', variant: 'destructive' });
     }
   };
 
+  const loadComments = async () => {
+    if (!id) return;
+    try {
+      const data = await interactionsApi.getComments(parseInt(id));
+      setComments(data.comments);
+    } catch (error) {
+      console.error('Failed to load comments:', error);
+    }
+  };
+
   const handleLike = async () => {
-    if (!isAuthenticated || !id || !token) {
+    if (!isAuthenticated || !id || !user) {
       toast({ title: 'Войдите', description: 'Необходима авторизация' });
       return;
     }
     try {
-      const result = await comicsApi.toggleLike(parseInt(id), token);
-      if (result.success) {
-        setIsLiked(result.liked);
+      if (isLiked) {
+        await interactionsApi.unlike(user.id, parseInt(id));
+        setIsLiked(false);
         if (comic) {
-          setComic({ ...comic, likes_count: comic.likes_count + (result.liked ? 1 : -1) });
+          setComic({ ...comic, likes_count: comic.likes_count - 1 });
+        }
+      } else {
+        const result = await interactionsApi.like(user.id, parseInt(id));
+        setIsLiked(true);
+        if (comic && result.likes_count) {
+          setComic({ ...comic, likes_count: result.likes_count });
         }
       }
     } catch (error) {
@@ -63,19 +77,17 @@ const ComicView = () => {
   };
 
   const handleRate = async (rating: number) => {
-    if (!isAuthenticated || !id || !token) {
+    if (!isAuthenticated || !id || !user) {
       toast({ title: 'Войдите', description: 'Необходима авторизация' });
       return;
     }
     try {
-      const result = await comicsApi.rate(parseInt(id), rating, token);
-      if (result.success) {
-        setUserRating(rating);
-        if (comic) {
-          setComic({ ...comic, avg_rating: result.new_avg_rating });
-        }
-        toast({ title: 'Готово', description: 'Ваша оценка учтена' });
+      const result = await interactionsApi.rate(user.id, parseInt(id), rating);
+      setUserRating(rating);
+      if (comic && result.avg_rating) {
+        setComic({ ...comic, avg_rating: result.avg_rating });
       }
+      toast({ title: 'Готово', description: 'Ваша оценка учтена' });
     } catch (error) {
       toast({ title: 'Ошибка', description: 'Не удалось оценить', variant: 'destructive' });
     }
@@ -83,15 +95,13 @@ const ComicView = () => {
 
   const handleComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAuthenticated || !id || !token || !commentText.trim()) return;
+    if (!isAuthenticated || !id || !user || !commentText.trim()) return;
     
     try {
-      const result = await comicsApi.addComment(parseInt(id), commentText, token);
-      if (result.success && result.comment) {
-        setComments([result.comment, ...comments]);
-        setCommentText('');
-        toast({ title: 'Готово', description: 'Комментарий добавлен' });
-      }
+      await interactionsApi.addComment(user.id, parseInt(id), commentText);
+      setCommentText('');
+      loadComments();
+      toast({ title: 'Готово', description: 'Комментарий добавлен' });
     } catch (error) {
       toast({ title: 'Ошибка', description: 'Не удалось добавить комментарий', variant: 'destructive' });
     }
@@ -212,14 +222,14 @@ const ComicView = () => {
                           {comment.display_name}
                         </span>
                         <span className="text-xs text-gray-500">
-                          {new Date(comment.created_at).toLocaleDateString('ru-RU')}
+                          {new Date(comment.created_at).toLocaleDateString('ru')}
                         </span>
                       </div>
                       <p className="text-sm text-gray-700">{comment.content}</p>
                     </div>
                   ))}
                   {comments.length === 0 && (
-                    <p className="text-center text-gray-500 py-8">Пока нет комментариев</p>
+                    <p className="text-center text-gray-400 py-8">Комментариев пока нет</p>
                   )}
                 </div>
               </CardContent>
@@ -227,104 +237,85 @@ const ComicView = () => {
           </div>
 
           <div className="lg:col-span-1">
-            <div className="sticky top-24 space-y-6">
-              <Card className="border-2 border-black manga-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h2 className="text-2xl font-bold font-heading mb-2">{comic.title}</h2>
-                      <p className="text-sm text-gray-600 cursor-pointer hover:underline" onClick={() => navigate(`/profile/${comic.user_id}`)}>
-                        {comic.display_name}
-                      </p>
+            <Card className="border-2 border-black manga-shadow sticky top-24">
+              <CardContent className="p-6">
+                <h1 className="text-2xl font-bold mb-3 font-heading">{comic.title}</h1>
+                
+                {comic.genre && (
+                  <Badge className="mb-4">{comic.genre}</Badge>
+                )}
+                
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-1">Автор:</p>
+                  <div 
+                    className="flex items-center gap-2 cursor-pointer hover:opacity-80"
+                    onClick={() => navigate(`/profile/${comic.user_id}`)}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                      {comic.avatar_url ? (
+                        <img src={comic.avatar_url} alt={comic.display_name} className="w-full h-full rounded-full" />
+                      ) : (
+                        <Icon name="User" size={16} />
+                      )}
                     </div>
-                    {comic.genre && <Badge>{comic.genre}</Badge>}
+                    <span className="font-medium">{comic.display_name}</span>
                   </div>
+                </div>
 
-                  {comic.description && (
-                    <p className="text-sm text-gray-700 mb-4">{comic.description}</p>
-                  )}
+                {comic.description && (
+                  <p className="text-sm text-gray-700 mb-4">{comic.description}</p>
+                )}
 
-                  <Separator className="my-4" />
+                <Separator className="my-4" />
 
-                  <div className="flex items-center justify-around py-4">
-                    <div className="text-center">
-                      <div className="flex items-center justify-center gap-1 mb-1">
-                        <Icon name="Star" size={20} className="fill-black" />
-                        <span className="text-2xl font-bold">{comic.avg_rating.toFixed(1)}</span>
-                      </div>
-                      <p className="text-xs text-gray-600">Рейтинг</p>
-                    </div>
-                    <div className="text-center">
-                      <div className="flex items-center justify-center gap-1 mb-1">
-                        <Icon name="Heart" size={20} className={isLiked ? 'fill-red-500 text-red-500' : ''} />
-                        <span className="text-2xl font-bold">{comic.likes_count}</span>
-                      </div>
-                      <p className="text-xs text-gray-600">Лайков</p>
-                    </div>
-                    <div className="text-center">
-                      <div className="flex items-center justify-center gap-1 mb-1">
-                        <Icon name="FileText" size={20} />
-                        <span className="text-2xl font-bold">{comic.pages.length}</span>
-                      </div>
-                      <p className="text-xs text-gray-600">Страниц</p>
+                <div className="space-y-3 mb-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Рейтинг:</span>
+                    <div className="flex items-center gap-1">
+                      <Icon name="Star" size={16} className="text-yellow-500 fill-yellow-500" />
+                      <span className="font-semibold">{comic.avg_rating.toFixed(1)}</span>
                     </div>
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Лайки:</span>
+                    <span className="font-semibold">{comic.likes_count}</span>
+                  </div>
+                </div>
 
-                  <Separator className="my-4" />
+                <div className="space-y-2">
+                  <Button 
+                    variant={isLiked ? "default" : "outline"} 
+                    className="w-full"
+                    onClick={handleLike}
+                    disabled={!isAuthenticated}
+                  >
+                    <Icon name="Heart" size={16} className="mr-2" />
+                    {isLiked ? 'Убрать лайк' : 'Поставить лайк'}
+                  </Button>
 
                   {isAuthenticated && (
-                    <>
-                      <div className="mb-4">
-                        <Label className="mb-2 block">Ваша оценка</Label>
-                        <div className="flex gap-2 justify-center">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <button
-                              key={star}
-                              onClick={() => handleRate(star)}
-                              className="transition-transform hover:scale-110"
-                            >
-                              <Icon
-                                name="Star"
-                                size={28}
-                                className={star <= userRating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}
-                              />
-                            </button>
-                          ))}
-                        </div>
+                    <div>
+                      <Label className="text-sm mb-2">Оцените комикс:</Label>
+                      <div className="flex gap-1 mt-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            onClick={() => handleRate(star)}
+                            className="p-1 hover:scale-110 transition-transform"
+                          >
+                            <Icon
+                              name="Star"
+                              size={24}
+                              className={star <= userRating ? 'text-yellow-500 fill-yellow-500' : 'text-gray-300'}
+                            />
+                          </button>
+                        ))}
                       </div>
-
-                      <Button
-                        variant={isLiked ? 'default' : 'outline'}
-                        className="w-full font-medium"
-                        onClick={handleLike}
-                      >
-                        <Icon name="Heart" size={18} className={`mr-2 ${isLiked ? 'fill-white' : ''}`} />
-                        {isLiked ? 'Убрать лайк' : 'Поставить лайк'}
-                      </Button>
-                    </>
-                  )}
-
-                  {!isAuthenticated && (
-                    <div className="text-center py-4">
-                      <p className="text-sm text-gray-600 mb-3">Войдите, чтобы оценить</p>
-                      <Button onClick={() => navigate('/')}>Войти</Button>
                     </div>
                   )}
-                </CardContent>
-              </Card>
-
-              <Card className="border-2 border-black manga-shadow">
-                <CardContent className="p-6">
-                  <h3 className="font-bold mb-3 font-heading">Об авторе</h3>
-                  <p className="text-sm text-gray-600 mb-3">
-                    Посмотрите другие работы {comic.display_name}
-                  </p>
-                  <Button variant="outline" className="w-full" onClick={() => navigate(`/profile/${comic.user_id}`)}>
-                    Перейти в профиль
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
